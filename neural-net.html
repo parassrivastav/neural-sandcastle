@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎯 V4 Neural Net - Tanh Curve Learner</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background: #222;
+      border: 2px solid #555;
+      margin-top: 20px;
+    }
+    .stats {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+    .stats span {
+      margin: 0 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎯 V4 Neural Net – Tanh Curve Learner (40+20 Neurons)</h2>
+  <div class="stats">
+    <span>Step: <strong id="step">0</strong></span>
+    <span>Accuracy: <strong id="acc">0%</strong></span>
+    <span>Loss: <strong id="loss">0.000</strong></span>
+  </div>
+  <canvas id="canvas" width="600" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    const stepDisplay = document.getElementById("step");
+    const accDisplay = document.getElementById("acc");
+    const lossDisplay = document.getElementById("loss");
+
+    const N = 400;
+    const data = [];
+
+    for (let i = 0; i < N; i++) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      const nx = (x - width / 2) / (width / 2);
+      const ny = (y - height / 2) / (height / 2);
+      const r = Math.sqrt(nx * nx + ny * ny);
+      const label = r > 0.3 && r < 0.6 ? 1 : 0;
+      data.push({ x:x,y: y, label });
+    }
+
+    function normalize(x, y) {
+      return [(x - width / 2) / (width / 2), -(y - height / 2) / (height / 2)];
+    }
+
+    const tanh = x => Math.tanh(x);
+    const tanh_deriv = y => 1 - y * y;
+    const sigmoid = x => 1 / (1 + Math.exp(-x));
+    const sigmoid_deriv = y => y * (1 - y);
+
+    class Neuron {
+      constructor(inputSize, activation, activation_deriv) {
+        this.weights = Array(inputSize).fill(0).map(() => Math.random() * 0.5 - 0.25);
+        this.bias = Math.random() * 0.5 - 0.25;
+        this.activation = activation;
+        this.activation_deriv = activation_deriv;
+      }
+
+      forward(inputs) {
+        this.inputs = inputs;
+        this.z = this.weights.reduce((sum, w, i) => sum + w * inputs[i], this.bias);
+        this.output = this.activation(this.z);
+        return this.output;
+      }
+
+      backward(grad, lr) {
+        const dz = grad * this.activation_deriv(this.output);
+        this.weights = this.weights.map((w, i) => w + lr * dz * this.inputs[i]);
+        this.bias += lr * dz;
+        return this.weights.map(w => w * dz);
+      }
+    }
+
+    class Layer {
+      constructor(size, inputSize, activation, activation_deriv) {
+        this.neurons = Array(size).fill().map(() => new Neuron(inputSize, activation, activation_deriv));
+      }
+
+      forward(inputs) {
+        this.inputs = inputs;
+        this.outputs = this.neurons.map(n => n.forward(inputs));
+        return this.outputs;
+      }
+
+      backward(grads, lr) {
+        const inputGrads = Array(this.inputs.length).fill(0);
+        this.neurons.forEach((n, i) => {
+          const g = n.backward(grads[i], lr);
+          for (let j = 0; j < inputGrads.length; j++) inputGrads[j] += g[j];
+        });
+        return inputGrads;
+      }
+    }
+
+    class Network {
+      constructor() {
+        this.lr = 0.05;
+        this.l1 = new Layer(40, 2, tanh, tanh_deriv);
+        this.l2 = new Layer(20, 40, tanh, tanh_deriv);
+        this.out = new Layer(1, 20, sigmoid, sigmoid_deriv);
+      }
+
+      forward(x, y) {
+        const a1 = this.l1.forward([x, y]);
+        const a2 = this.l2.forward(a1);
+        const out = this.out.forward(a2)[0];
+        return { a1, a2, out };
+      }
+
+      train(x, y, label) {
+        const { a1, a2, out } = this.forward(x, y);
+        const error = label - out;
+        const dOut = [error];
+        const dL2 = this.out.backward(dOut, this.lr);
+        const dL1 = this.l2.backward(dL2, this.lr);
+        this.l1.backward(dL1, this.lr);
+        return -label * Math.log(out + 1e-6) - (1 - label) * Math.log(1 - out + 1e-6);
+      }
+    }
+
+    const net = new Network();
+
+    function trainStep() {
+      let correct = 0, totalLoss = 0;
+      for (let point of data) {
+        const [nx, ny] = normalize(point.x, point.y);
+        const { out } = net.forward(nx, ny);
+        const loss = net.train(nx, ny, point.label);
+        totalLoss += loss;
+        if ((out > 0.5 && point.label === 1) || (out <= 0.5 && point.label === 0)) correct++;
+      }
+      accDisplay.innerText = `${(correct / data.length * 100).toFixed(1)}%`;
+      lossDisplay.innerText = totalLoss.toFixed(3);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      const grid = 4;
+      for (let i = 0; i < width; i += grid) {
+        for (let j = 0; j < height; j += grid) {
+          const [nx, ny] = normalize(i, j);
+          const { out } = net.forward(nx, ny);
+          const alpha = Math.abs(out - 0.5) * 2;
+          ctx.fillStyle = out > 0.5 ? `rgba(0,0,255,${alpha * 0.4})` : `rgba(255,0,0,${alpha * 0.4})`;
+          ctx.fillRect(i, j, grid, grid);
+        }
+      }
+      for (let point of data) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 3.5, 0, 2 * Math.PI);
+        ctx.fillStyle = point.label === 1 ? 'blue' : 'red';
+        ctx.fill();
+      }
+    }
+
+    let step = 0;
+    const maxSteps = 800;
+    const interval = setInterval(() => {
+      trainStep();
+      draw();
+      step++;
+      stepDisplay.innerText = step;
+      if (step >= maxSteps) clearInterval(interval);
+    }, 0);
+  </script>
+</body>
+</html>

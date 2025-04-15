@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Neuron Visualizer – Class-Based</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background: #222;
+      border: 2px solid #555;
+      margin-top: 20px;
+    }
+    .stats {
+      margin-top: 10px;
+      font-size: 18px;
+    }
+    .stats span {
+      margin: 0 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 Tanh Neuron Visualizer – Class Edition</h2>
+  <div class="stats">
+    <span>Step: <strong id="step">0</strong></span>
+    <span>Accuracy: <strong id="acc">0%</strong></span>
+    <span>Loss: <strong id="loss">0.00</strong></span>
+  </div>
+  <canvas id="canvas" width="600" height="600"></canvas>
+
+  <script>
+    class Neuron {
+      constructor() {
+        this.w = [Math.random() * 10 - 5, Math.random() * 10 - 5];
+        this.b = Math.random() * 5 - 2.5;
+        this.lr = 0.005;
+      }
+
+      activate(z) {
+        return Math.tanh(z);
+      }
+
+//       activate(z) {
+//   return 1 / (1 + Math.exp(-z*.1));
+// }
+
+// activate(z) {
+//   return z > 0 ? z : 0.01 * z;
+// }
+
+
+
+
+//       activate(z) {
+//   return Math.max(0, z);
+// }
+
+
+      predict(x, y) {
+        return this.activate(this.w[0] * x + this.w[1] * y + this.b);
+      }
+
+      train(data) {
+        let loss = 0, correct = 0;
+
+        for (let p of data) {
+          const [x, y] = p.input;
+          const target = p.label;
+          const pred = this.predict(x, y);
+          const error = target - pred;
+
+          loss += error * error;
+          if ((pred >= 0 && target === 1) || (pred < 0 && target === -1)) correct++;
+
+          const grad = 1 - pred * pred;
+          const delta = error * grad;
+
+          this.w[0] += this.lr * delta * x;
+          this.w[1] += this.lr * delta * y;
+          this.b += this.lr * delta;
+        }
+
+        return {
+          loss: loss / data.length,
+          accuracy: (correct / data.length) * 100
+        };
+      }
+    }
+
+    class Brain {
+      constructor(canvasId, numPoints = 100) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext("2d");
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
+        this.stats = {
+          step: document.getElementById("step"),
+          acc: document.getElementById("acc"),
+          loss: document.getElementById("loss")
+        };
+        this.step = 0;
+        this.maxSteps = 2000;
+        this.neuron = new Neuron();
+        this.data = this.generatePoints(numPoints);
+        this.loop = setInterval(() => this.update(), 0);//interval step
+      }
+
+      normalize(x, y) {
+        return [
+          (x - this.width / 2) / (this.width / 2),
+          -(y - this.height / 2) / (this.height / 2)
+        ];
+      }
+
+      denormalize(nx, ny) {
+        return [
+          nx * (this.width / 2) + this.width / 2,
+          -ny * (this.height / 2) + this.height / 2
+        ];
+      }
+
+      generatePoints(N) {
+        const points = [];
+        for (let i = 0; i < N; i++) {
+          const x = Math.random() * this.width;
+          const y = Math.random() * this.height;
+          const [nx, ny] = this.normalize(x, y);
+          const label = ny > 0.3 * nx + 0.1 ? 1 : -1;
+          points.push({ input: [nx, ny], screen: [x, y], label });
+        }
+        return points;
+      }
+
+      update() {
+        const result = this.neuron.train(this.data);
+        this.draw();
+        this.stats.step.innerText = this.step++;
+        this.stats.acc.innerText = result.accuracy.toFixed(1) + "%";
+        this.stats.loss.innerText = result.loss.toFixed(3);
+        if (this.step >= this.maxSteps) clearInterval(this.loop);
+      }
+
+      draw() {
+        const imgData = this.ctx.createImageData(this.width, this.height);
+        for (let x = 0; x < this.width; x++) {
+          for (let y = 0; y < this.height; y++) {
+            const [nx, ny] = this.normalize(x, y);
+            const pred = this.neuron.predict(nx, ny);
+            const norm = (pred + 1) / 2;
+            const i = (y * this.width + x) * 4;
+
+            let r = 0, g = 0, b = 0;
+            if (pred < 0) {
+              r = 255;
+              g = Math.floor(120 * norm);
+              b = 0;
+            } else {
+              r = 0;
+              g = Math.floor(120 * (1 - norm));
+              b = 255;
+            }
+
+            const alpha = Math.floor(155 * Math.pow(Math.abs(pred), 1));
+            imgData.data[i + 0] = r;
+            imgData.data[i + 1] = g;
+            imgData.data[i + 2] = b;
+            imgData.data[i + 3] = alpha;
+          }
+        }
+        this.ctx.putImageData(imgData, 0, 0);
+
+        for (let p of this.data) {
+          this.ctx.beginPath();
+          this.ctx.arc(p.screen[0], p.screen[1], 5, 0, 2 * Math.PI);
+          this.ctx.fillStyle = p.label === -1 ? 'red' : 'blue';
+          this.ctx.fill();
+        }
+
+        const x1 = -1;
+        const x2 = 1;
+        const y1 = (-this.neuron.w[0] * x1 - this.neuron.b) / this.neuron.w[1];
+        const y2 = (-this.neuron.w[0] * x2 - this.neuron.b) / this.neuron.w[1];
+        const [px1, py1] = this.denormalize(x1, y1);
+        const [px2, py2] = this.denormalize(x2, y2);
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(px1, py1);
+        this.ctx.lineTo(px2, py2);
+        this.ctx.strokeStyle = 'rgba(255,255,255,0)';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+      }
+    }
+
+    window.onload = () => new Brain("canvas");
+  </script>
+</body>
+</html>
