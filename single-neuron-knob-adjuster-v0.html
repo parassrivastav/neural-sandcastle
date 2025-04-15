@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neuron Learning Bifurcation</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: sans-serif;
+      text-align: center;
+      padding-top: 30px;
+    }
+    .stats {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    canvas {
+      background: #222;
+      border: 2px solid #555;
+      display: block;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 Neuron Bifurcation Learning</h2>
+  <p>Set division point: <input type="range" id="division" min="2" max="24" value="11"> <span id="divValue">11</span></p>
+  <canvas id="canvas" width="600" height="200"></canvas>
+  <div class="stats">
+    <p>Step: <span id="step">0</span></p>
+    <p>Accuracy: <span id="acc">0%</span> | Loss: <span id="loss">0.00</span></p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const divSlider = document.getElementById('division');
+    const divValue = document.getElementById('divValue');
+    const stepEl = document.getElementById('step');
+    const accEl = document.getElementById('acc');
+    const lossEl = document.getElementById('loss');
+
+    let points = [];
+    for (let i = 1; i <= 25; i++) {
+      points.push({ x: i, label: 0 });
+    }
+
+    let weight = Math.random() * 2 - 1;
+    let bias = Math.random() * 5 - 2.5;
+    let lr = 0.05;
+    let step = 0;
+    let interval;
+
+    function sigmoid(x) {
+      return 1 / (1 + Math.exp(-5*x));
+    }
+
+    function trainStep() {
+      let totalLoss = 0;
+      let correct = 0;
+
+      points.forEach(p => {
+        let raw = weight * p.x + bias;
+        let pred = sigmoid(raw);
+        let expected = p.x >= division ? 1 : 0;
+        let error = pred - expected;
+
+        // gradient descent update
+        weight -= lr * error * p.x;
+        bias -= lr * error;
+
+        totalLoss += error ** 2;
+        if ((pred >= 0.5 && expected === 1) || (pred < 0.5 && expected === 0)) {
+          correct++;
+        }
+      });
+
+      step++;
+      draw();
+      stepEl.textContent = step;
+      accEl.textContent = ((correct / points.length) * 100).toFixed(1) + '%';
+      lossEl.textContent = (totalLoss / points.length).toFixed(3);
+
+      if (step >= 2000000 || correct === points.length) clearInterval(interval);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      points.forEach(p => {
+        let raw = weight * p.x + bias;
+        let pred = sigmoid(raw);
+        ctx.beginPath();
+        ctx.arc(p.x * 20, 150 - pred * 100, 5, 0, Math.PI * 2);
+        ctx.fillStyle = pred >= 0.5 ? 'lime' : 'red';
+        ctx.fill();
+      });
+    }
+
+    let division = parseInt(divSlider.value);
+    divValue.textContent = division;
+
+    divSlider.oninput = () => {
+      division = parseInt(divSlider.value);
+      divValue.textContent = division;
+      reset();
+    };
+
+    function reset() {
+      weight = Math.random() * 2 - 1;
+      bias = Math.random() * 5 - 2.5;
+      step = 0;
+      clearInterval(interval);
+      interval = setInterval(trainStep, 1);
+    }
+
+    reset();
+  </script>
+</body>
+</html>
