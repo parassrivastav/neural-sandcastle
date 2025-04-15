@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🧱 Deep Chain Learner – Trainable</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background: #222;
+      border: 2px solid #555;
+      margin: 20px auto;
+      display: block;
+    }
+    .stats {
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧱 Deep Chain DNN (10x1) Learning Harmonic Function</h2>
+  <canvas id="canvas" width="600" height="200"></canvas>
+  <div class="stats">
+    Step: <span id="step">0</span> | Loss: <span id="loss">0</span>
+  </div>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const A1 = Math.random() * 1.0 - 0.5;
+    const A2 = Math.random() * 1.0 - 0.5;
+    const A3 = Math.random() * 1.0 - 0.5;
+    function targetFn(x) {
+      return A1 * Math.sin(x) + A2 * Math.sin(2 * x) + A3 * Math.sin(3 * x);
+    }
+
+    const data = [];
+    for (let x = 0; x <= 2 * Math.PI; x += 0.2) {
+      const y = targetFn(x);
+      data.push({ x, y });
+    }
+    const maxY = Math.max(...data.map(p => Math.abs(p.y)));
+    data.forEach(p => {
+      p.y /= maxY;
+      p.xNorm = (p.x / Math.PI) - 1;
+    });
+
+    // Deep chain of 10 layers with 1 neuron each
+    const layers = Array.from({ length: 10 }, () => ({
+      w: Math.random() * 2 - 1,
+      b: Math.random() * 2 - 1
+    }));
+
+    function tanh(z) {
+      return Math.tanh(z);
+    }
+    function tanhDeriv(z) {
+      const t = Math.tanh(z);
+      return 1 - t * t;
+    }
+
+    function forward(x) {
+      let z = x;
+      for (const layer of layers) {
+        z = tanh(layer.w * z + layer.b);
+      }
+      return z;
+    }
+
+    let step = 0;
+
+    function train() {
+      let totalLoss = 0;
+      for (const point of data) {
+        const activations = [point.xNorm];
+        const zs = [];
+
+        for (const layer of layers) {
+          const z = layer.w * activations.at(-1) + layer.b;
+          zs.push(z);
+          activations.push(tanh(z));
+        }
+
+        const yPred = activations.at(-1);
+        const error = yPred - point.y;
+        totalLoss += error ** 2;
+
+        let dz = error * tanhDeriv(zs.at(-1));
+
+        for (let i = layers.length - 1; i >= 0; i--) {
+          const dw = dz * activations[i];
+          const db = dz;
+          layers[i].w -= 0.1 * dw;
+          layers[i].b -= 0.1 * db;
+
+          if (i > 0) {
+            dz = dz * layers[i].w * tanhDeriv(zs[i - 1]);
+          }
+        }
+      }
+
+      step++;
+      document.getElementById("step").textContent = step;
+      document.getElementById("loss").textContent = (totalLoss / data.length).toFixed(4);
+
+      draw();
+      if (step < 5000) requestAnimationFrame(train);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 600, 200);
+
+      for (const point of data) {
+        const px = (point.x / (2 * Math.PI)) * 600;
+        const py = 100 - point.y * 80;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = "red";
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      for (let px = 0; px <= 600; px++) {
+        const x = (px / 600) * 2 * Math.PI;
+        const xNorm = (x / Math.PI) - 1;
+        const y = forward(xNorm);
+        const py = 100 - y * 80;
+        if (px === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = "cyan";
+      ctx.stroke();
+    }
+
+    train();
+  </script>
+</body>
+</html>
