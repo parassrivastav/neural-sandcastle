@@ -106,7 +106,21 @@ const plane = new THREE.Mesh(
     opacity: 0.4
   })
 );
-plane.position.set(0, 0, 0);
+
+// Random position in cube of size 4 centered at origin
+plane.position.set(
+  Math.random() * 4 - 2,
+  Math.random() * 4 - 2,
+  Math.random() * 4 - 2
+);
+
+// Random rotation around all axes (in radians)
+plane.rotation.set(
+  Math.random() * Math.PI * 2,
+  Math.random() * Math.PI * 2,
+  Math.random() * Math.PI * 2
+);
+
 scene.add(plane);
 
 // 📊 DOM Stats
@@ -132,7 +146,7 @@ function updatePlane() {
 }
 
 let lastUpdate = 0;
-let interval = 50; // ⏱️ milliseconds between updates (adjust this)
+let interval = 150; // ⏱️ milliseconds between updates (adjust this)
 
 function animate(timestamp) {
   requestAnimationFrame(animate);
