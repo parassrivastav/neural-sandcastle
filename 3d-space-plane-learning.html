@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Neuron Plane Classifier</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #111; }
+    #stats {
+      position: absolute;
+      color: white;
+      top: 10px;
+      left: 10px;
+      font-family: monospace;
+      font-size: 16px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+<div id="stats">Step: <span id="step">0</span> | Accuracy: <span id="acc">0%</span> | Loss: <span id="loss">0.00</span></div>
+
+<!-- ✅ Using Three.js + OrbitControls that actually work -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.125.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.125.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+class Neuron3D {
+  constructor() {
+    this.w = [Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1];
+    this.b = Math.random() * 2 - 1;
+    this.lr = 0.01;
+  }
+
+  activate(z) {
+    return Math.tanh(z);
+  }
+
+  predict(x, y, z) {
+    const sum = this.w[0]*x + this.w[1]*y + this.w[2]*z + this.b;
+    return this.activate(sum);
+  }
+
+  train(data) {
+    let loss = 0, correct = 0;
+    for (let p of data) {
+      const [x, y, z] = p.input;
+      const target = p.label;
+      const pred = this.predict(x, y, z);
+      const error = target - pred;
+      loss += error * error;
+      if ((pred >= 0 && target === 1) || (pred < 0 && target === -1)) correct++;
+
+      const grad = 1 - pred * pred;
+      const delta = error * grad;
+      this.w[0] += this.lr * delta * x;
+      this.w[1] += this.lr * delta * y;
+      this.w[2] += this.lr * delta * z;
+      this.b += this.lr * delta;
+    }
+
+    return {
+      loss: loss / data.length,
+      accuracy: (correct / data.length) * 100
+    };
+  }
+}
+
+// Setup
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(2, 2, 2);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// ✅ OrbitControls now works here
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+const neuron = new Neuron3D();
+let step = 0;
+
+const N = 200;
+const points = [];
+const group = new THREE.Group();
+scene.add(group);
+
+function generatePoints() {
+  for (let i = 0; i < N; i++) {
+    const x = Math.random() * 2 - 1;
+    const y = Math.random() * 2 - 1;
+    const z = Math.random() * 2 - 1;
+    const label = y > x + 0.3 ? 1 : -1;
+    const color = label === 1 ? 0x00aaff : 0xff3333;
+    const geometry = new THREE.SphereGeometry(0.02, 8, 8);
+    const material = new THREE.MeshBasicMaterial({ color });
+    const sphere = new THREE.Mesh(geometry, material);
+    sphere.position.set(x, y, z);
+    group.add(sphere);
+    points.push({ input: [x, y, z], label, mesh: sphere });
+  }
+}
+generatePoints();
+
+// Plane
+const planeGeometry = new THREE.PlaneGeometry(2, 2);
+const planeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+scene.add(plane);
+
+// Lighting
+const light = new THREE.AmbientLight(0xffffff);
+scene.add(light);
+
+function updatePlane() {
+  const [a, b, c] = neuron.w;
+  const normal = new THREE.Vector3(a, b, c).normalize();
+  const constant = neuron.b / normal.length();
+  plane.lookAt(plane.position.clone().add(normal));
+  plane.position.copy(normal.clone().multiplyScalar(-constant));
+}
+
+const accText = document.getElementById("acc");
+const lossText = document.getElementById("loss");
+const stepText = document.getElementById("step");
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const result = neuron.train(points);
+  updatePlane();
+
+  for (let p of points) {
+    const pred = neuron.predict(...p.input);
+    p.mesh.material.color.set(pred >= 0 ? 0x00aaff : 0xff3333);
+  }
+
+  stepText.innerText = ++step;
+  accText.innerText = result.accuracy.toFixed(1) + "%";
+  lossText.innerText = result.loss.toFixed(3);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
