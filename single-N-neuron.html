@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🧠 1D 10-Neuron Series – Complex Function Learner</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      margin-top: 20px;
+      border: 2px solid #555;
+      background: #222;
+    }
+    .stats {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 10 Neurons in Series – Learns Complex Wavy Pattern</h2>
+  <canvas id="canvas" width="600" height="150"></canvas>
+  <div class="stats">
+    Step: <span id="step">0</span> |
+    Loss: <span id="loss">0.0</span>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Training data: wavy/sinusoidal-like shape
+    const data = [];
+    for (let i = 1; i <= 10; i += 0.2) {
+      const label = Math.sin(i) > 0.5 ? 1 : 0;
+      data.push({ x: i, label });
+    }
+
+    // Create 10 layers of neuron weights and biases
+    const layers = Array.from({ length: 10 }, () => ({
+      w: Math.random() * 2 - 1,
+      b: Math.random() * 2 - 1,
+    }));
+
+    let step = 0;
+
+    function sigmoid(z) {
+      return 1 / (1 + Math.exp(-z));
+    }
+
+    function sigmoid_deriv(z) {
+      const s = sigmoid(z);
+      return s * (1 - s);
+    }
+
+    function forward(x) {
+      let z = x;
+      for (const layer of layers) {
+        z = sigmoid(layer.w * z + layer.b);
+      }
+      return z;
+    }
+
+    function train() {
+      let totalLoss = 0;
+
+      for (const point of data) {
+        const activations = [point.x];
+        const zs = [];
+
+        for (const layer of layers) {
+          const z = layer.w * activations[activations.length - 1] + layer.b;
+          zs.push(z);
+          activations.push(sigmoid(z));
+        }
+
+        const pred = activations[activations.length - 1];
+        const error = pred - point.label;
+        totalLoss += error ** 2;
+
+        // Backpropagation (simple gradient descent for demonstration)
+        let dz = error * sigmoid_deriv(zs[zs.length - 1]);
+
+        for (let l = layers.length - 1; l >= 0; l--) {
+          const dw = dz * activations[l];
+          const db = dz;
+
+          layers[l].w -= 0.1 * dw;
+          layers[l].b -= 0.1 * db;
+
+          if (l > 0) {
+            dz = dz * layers[l].w * sigmoid_deriv(zs[l - 1]);
+          }
+        }
+      }
+
+      step++;
+      draw();
+      document.getElementById('step').innerText = step;
+      document.getElementById('loss').innerText = (totalLoss / data.length).toFixed(4);
+
+      if (step < 500) {
+        requestAnimationFrame(train);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw prediction curve
+      ctx.beginPath();
+      ctx.moveTo(0, 150);
+      for (let px = 0; px <= 600; px++) {
+        const x = px / 60;
+        const y = forward(x);
+        ctx.lineTo(px, 150 - y * 140);
+      }
+      ctx.strokeStyle = '#00ffff';
+      ctx.stroke();
+
+      // Draw training points
+      for (const point of data) {
+        ctx.beginPath();
+        ctx.arc(point.x * 60, 150 - point.label * 140, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = point.label > 0 ? '#00ff00' : '#ff0000';
+        ctx.fill();
+      }
+    }
+
+    draw();
+    train();
+  </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🧠 DNN (1 Hidden Layer with 10 Neurons) Learning Harmonic</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      margin-top: 20px;
+      border: 2px solid #555;
+      background: #222;
+    }
+    .stats {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎼 DNN: 1 Hidden Layer with 10 Neurons – Learning Harmonic Function</h2>
+  <canvas id="canvas" width="600" height="200"></canvas>
+  <div class="stats">
+    Step: <span id="step">0</span> |
+    Loss: <span id="loss">0.0</span>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const A1 = Math.random() * 1.0 - 0.5;
+    const A2 = Math.random() * 1.0 - 0.5;
+    const A3 = Math.random() * 1.0 - 0.5;
+
+    function targetFn(x) {
+      return A1 * Math.sin(x) + A2 * Math.sin(2 * x) + A3 * Math.sin(3 * x);
+    }
+
+    const data = [];
+    for (let x = 0; x <= 2 * Math.PI; x += 0.2) {
+      data.push({ x, y: targetFn(x) });
+    }
+
+    const maxY = Math.max(...data.map(p => Math.abs(p.y)));
+    data.forEach(p => {
+      p.y /= maxY;
+      p.xNorm = (p.x / Math.PI) - 1;
+    });
+
+    // 10 neurons in hidden layer
+    const hidden = Array.from({ length: 10 }, () => ({
+      w: Math.random() * 2 - 1,
+      b: Math.random() * 2 - 1,
+    }));
+
+    // Output neuron
+    const output = {
+      w: Array.from({ length: 10 }, () => Math.random() * 2 - 1),
+      b: Math.random() * 2 - 1
+    };
+
+    let step = 0;
+
+    function tanh(z) {
+      return Math.tanh(z);
+    }
+
+    function tanh_deriv(z) {
+      const t = Math.tanh(z);
+      return 1 - t * t;
+    }
+
+    function forward(x) {
+      const hInputs = hidden.map(n => tanh(n.w * x + n.b));
+      const y = output.w.reduce((sum, w, i) => sum + w * hInputs[i], output.b);
+      return y;
+    }
+
+    function train() {
+      let totalLoss = 0;
+
+      for (const point of data) {
+        const x = point.xNorm;
+        const hZ = hidden.map(n => n.w * x + n.b);
+        const hA = hZ.map(tanh);
+        const yPred = output.w.reduce((sum, w, i) => sum + w * hA[i], output.b);
+        const error = yPred - point.y;
+        totalLoss += error ** 2;
+
+        // Output layer gradients
+        for (let i = 0; i < 10; i++) {
+          output.w[i] -= 0.05 * error * hA[i];
+        }
+        output.b -= 0.05 * error;
+
+        // Hidden layer backprop
+        for (let i = 0; i < 10; i++) {
+          const dz = error * output.w[i] * tanh_deriv(hZ[i]);
+          hidden[i].w -= 0.05 * dz * x;
+          hidden[i].b -= 0.05 * dz;
+        }
+      }
+
+      step++;
+      draw();
+      document.getElementById('step').innerText = step;
+      document.getElementById('loss').innerText = (totalLoss / data.length).toFixed(4);
+
+      if (step < 5000) {
+        requestAnimationFrame(train);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (const point of data) {
+        const px = (point.x / (2 * Math.PI)) * 600;
+        const py = 100 - point.y * 80;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(0, 100);
+      for (let px = 0; px <= 600; px++) {
+        const x = (px / 600) * 2 * Math.PI;
+        const xNorm = (x / Math.PI) - 1;
+        const y = forward(xNorm);
+        const scaledY = 100 - y * 80;
+        ctx.lineTo(px, scaledY);
+      }
+      ctx.strokeStyle = 'cyan';
+      ctx.stroke();
+    }
+
+    draw();
+    train();
+  </script>
+</body>
+</html>
