@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🧱 Deep Chain Learner – Trainable</title>
+  <title>🎵 Deep Chain DNN (10x1 Sin) Harmonic Learner</title>
   <style>
     body {
       background: #111;
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h2>🧱 Deep Chain DNN (10x1) Learning Harmonic Function</h2>
+  <h2>🎵 Deep Chain DNN (10x1, Sin) Learning Harmonic Function</h2>
   <canvas id="canvas" width="600" height="200"></canvas>
   <div class="stats">
     Step: <span id="step">0</span> | Loss: <span id="loss">0</span>
@@ -49,24 +49,25 @@
       p.xNorm = (p.x / Math.PI) - 1;
     });
 
-    // Deep chain of 10 layers with 1 neuron each
+    // 🧠 10x1 Deep Chain with Sin Activation
     const layers = Array.from({ length: 10 }, () => ({
-      w: Math.random() * 2 - 1,
-      b: Math.random() * 2 - 1
+      w: Math.random() * 6 - 3,
+      b: 0
     }));
 
-    function tanh(z) {
-      return Math.tanh(z);
+    const LEARNING_RATE = 0.01;
+
+    function act(x) {
+      return Math.sin(x);
     }
-    function tanhDeriv(z) {
-      const t = Math.tanh(z);
-      return 1 - t * t;
+    function actDeriv(x) {
+      return Math.cos(x);
     }
 
     function forward(x) {
       let z = x;
       for (const layer of layers) {
-        z = tanh(layer.w * z + layer.b);
+        z = act(layer.w * z + layer.b);
       }
       return z;
     }
@@ -82,23 +83,23 @@
         for (const layer of layers) {
           const z = layer.w * activations.at(-1) + layer.b;
           zs.push(z);
-          activations.push(tanh(z));
+          activations.push(act(z));
         }
 
         const yPred = activations.at(-1);
         const error = yPred - point.y;
         totalLoss += error ** 2;
 
-        let dz = error * tanhDeriv(zs.at(-1));
+        let dz = 2 * error * actDeriv(zs.at(-1));
 
         for (let i = layers.length - 1; i >= 0; i--) {
           const dw = dz * activations[i];
           const db = dz;
-          layers[i].w -= 0.1 * dw;
-          layers[i].b -= 0.1 * db;
+          layers[i].w -= LEARNING_RATE * dw;
+          layers[i].b -= LEARNING_RATE * db + (Math.random() - 0.5) * 0.001; // slight noise
 
           if (i > 0) {
-            dz = dz * layers[i].w * tanhDeriv(zs[i - 1]);
+            dz = dz * layers[i].w * actDeriv(zs[i - 1]);
           }
         }
       }
@@ -106,9 +107,9 @@
       step++;
       document.getElementById("step").textContent = step;
       document.getElementById("loss").textContent = (totalLoss / data.length).toFixed(4);
-
       draw();
-      if (step < 5000) requestAnimationFrame(train);
+
+      if (step < 15000) requestAnimationFrame(train);
     }
 
     function draw() {
