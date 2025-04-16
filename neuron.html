@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Single Neuron Visualizer</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background: #222;
+      border: 2px solid #555;
+      margin-top: 20px;
+    }
+    .stats {
+      margin-top: 10px;
+      font-size: 18px;
+    }
+    .stats span {
+      margin: 0 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 Single Neuron Visualizer – Live Learning</h2>
+  <div class="stats">
+    <span>Step: <strong id="step">0</strong></span>
+    <span>Accuracy: <strong id="acc">0%</strong></span>
+    <span>Loss: <strong id="loss">0.00</strong></span>
+  </div>
+  <canvas id="canvas" width="600" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+
+    const stepDisplay = document.getElementById("step");
+    const accDisplay = document.getElementById("acc");
+    const lossDisplay = document.getElementById("loss");
+
+    // Generate data
+    const N = 100;
+    const allPoints = [];
+
+    for (let i = 0; i < N; i++) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      const nx = (x - width / 2) / (width / 2);
+      const ny = (y - height / 2) / (height / 2);
+      const label = ny > 0.3 * nx + 0.1 ? 1 : 0; // simple tilted line
+      allPoints.push({ x, y, label });
+    }
+
+    function normalize(x, y) {
+      return [
+        (x - width / 2) / (width / 2),
+        -(y - height / 2) / (height / 2)
+      ];
+    }
+
+    function denormalize(nx, ny) {
+      return [
+        nx * (width / 2) + width / 2,
+        -ny * (height / 2) + height / 2
+      ];
+    }
+
+    // Our single neuron (w1*x + w2*y + b) -> sigmoid
+    let w = [Math.random() * 2 - 1, Math.random() * 2 - 1];
+    let b = Math.random() * 2 - 1;
+    const lr = 0.1;
+
+    function sigmoid(z) {
+      return 1 / (1 + Math.exp(-z));
+    }
+
+    function predict(x, y) {
+      return sigmoid(w[0] * x + w[1] * y + b);
+    }
+
+    function trainStep() {
+      let correct = 0;
+      let loss = 0;
+
+      for (let p of allPoints) {
+        const [nx, ny] = normalize(p.x, p.y);
+        const pred = predict(nx, ny);
+        const error = p.label - pred;
+
+        loss += error * error;
+        if ((pred >= 0.5 && p.label === 1) || (pred < 0.5 && p.label === 0)) {
+          correct++;
+        }
+
+        // Gradient Descent
+        const grad = pred * (1 - pred); // derivative of sigmoid
+        const delta = error * grad;
+
+        w[0] += lr * delta * nx;
+        w[1] += lr * delta * ny;
+        b += lr * delta;
+      }
+
+      const accuracy = (correct / allPoints.length * 100).toFixed(1);
+      const avgLoss = (loss / allPoints.length).toFixed(3);
+
+      accDisplay.innerText = `${accuracy}%`;
+      lossDisplay.innerText = avgLoss;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw points
+      for (let p of allPoints) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = p.label === 0 ? 'red' : 'blue';
+        ctx.fill();
+      }
+
+      // Draw decision boundary line
+      const x1 = -1;
+      const x2 = 1;
+      const y1 = (-w[0] * x1 - b) / w[1];
+      const y2 = (-w[0] * x2 - b) / w[1];
+
+      const [px1, py1] = denormalize(x1, y1);
+      const [px2, py2] = denormalize(x2, y2);
+
+      ctx.beginPath();
+      ctx.moveTo(px1, py1);
+      ctx.lineTo(px2, py2);
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    let step = 0;
+    const maxSteps = 200;
+
+    const interval = setInterval(() => {
+      trainStep();
+      draw();
+      step++;
+      stepDisplay.innerText = step;
+      if (step >= maxSteps) clearInterval(interval);
+    }, 300);
+  </script>
+</body>
+</html>
