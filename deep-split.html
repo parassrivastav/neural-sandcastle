@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🧠 Deep Split-Merge Neural Network (2 Layers Per Branch)</title>
+  <style>
+    body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }
+    canvas { background: #222; border: 2px solid #555; margin-top: 20px; }
+    .stats { font-size: 18px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🔀 Deep Split-Merge Neural Network (2 Layers Per Branch)</h2>
+  <canvas id="canvas" width="600" height="200"></canvas>
+  <div class="stats">
+    Step: <span id="step">0</span> | Loss: <span id="loss">0.0</span>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const A1 = Math.random() * 1.0 - 0.5;
+    const A2 = Math.random() * 1.0 - 0.5;
+    const A3 = Math.random() * 1.0 - 0.5;
+    function targetFn(x) {
+      return A1 * Math.sin(x) + A2 * Math.sin(2 * x) + A3 * Math.sin(3 * x);
+    }
+
+    const data = [];
+    for (let x = 0; x <= 2 * Math.PI; x += 0.2) {
+      const y = targetFn(x);
+      data.push({ x, y });
+    }
+    const maxY = Math.max(...data.map(p => Math.abs(p.y)));
+    data.forEach(p => {
+      p.y /= maxY;
+      p.xNorm = (p.x / Math.PI) - 1;
+    });
+
+    function tanh(z) {
+      return Math.tanh(z);
+    }
+    function tanhDeriv(z) {
+      const t = Math.tanh(z);
+      return 1 - t * t;
+    }
+
+    class Neuron {
+      constructor() {
+        this.w = Math.random() * 2 - 1;
+        this.b = Math.random() * 2 - 1;
+      }
+      forward(x) {
+        this.input = x;
+        this.z = this.w * x + this.b;
+        this.a = tanh(this.z);
+        return this.a;
+      }
+      backward(da, lr = 0.05) {
+        const dz = da * tanhDeriv(this.z);
+        const dw = dz * this.input;
+        this.w -= lr * dw;
+        this.b -= lr * dz;
+        return dz * this.w;
+      }
+    }
+
+    class DeepSplitMergeNet {
+      constructor() {
+        this.n1 = new Neuron();
+        this.n2 = new Neuron();
+        this.n3 = new Neuron();
+        this.n4 = new Neuron();
+        this.n5 = new Neuron();
+        this.n6 = new Neuron();
+        this.merge = new Neuron();
+      }
+
+      forward(x) {
+        this.a1 = this.n1.forward(x);
+        this.a2 = this.n2.forward(this.a1);
+        this.a3 = this.n3.forward(this.a2);
+        this.a4 = this.n4.forward(this.a1);
+        this.a5 = this.n5.forward(this.a4);
+        this.a6 = this.n6.forward(this.a5);
+        this.output = this.merge.forward(this.a3 + this.a6);
+        return this.output;
+      }
+
+      trainStep(x, yTrue, lr = 0.05) {
+        const yPred = this.forward(x);
+        const error = yPred - yTrue;
+        const dLoss = 2 * error;
+        let dMergeInput = this.merge.backward(dLoss, lr);
+
+        let dA3 = dMergeInput * 0.5;
+        let dA6 = dMergeInput * 0.5;
+
+        let dA5 = this.n6.backward(dA6, lr);
+        let dA4 = this.n5.backward(dA5, lr);
+        let dA1_b2 = this.n4.backward(dA4, lr);
+
+        let dA2 = this.n3.backward(dA3, lr);
+        let dA1_b1 = this.n2.backward(dA2, lr);
+
+        const dA1 = dA1_b1 + dA1_b2;
+        this.n1.backward(dA1, lr);
+
+        return error ** 2;
+      }
+    }
+
+    const net = new DeepSplitMergeNet();
+    let step = 0;
+
+    function train() {
+      let totalLoss = 0;
+      for (const point of data) {
+        totalLoss += net.trainStep(point.xNorm, point.y);
+      }
+      step++;
+      document.getElementById('step').innerText = step;
+      document.getElementById('loss').innerText = (totalLoss / data.length).toFixed(4);
+      draw();
+      if (step < 4000) requestAnimationFrame(train);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const point of data) {
+        const px = (point.x / (2 * Math.PI)) * canvas.width;
+        const py = 100 - point.y * 80;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      for (let px = 0; px <= canvas.width; px++) {
+        const x = (px / canvas.width) * 2 * Math.PI;
+        const xNorm = (x / Math.PI) - 1;
+        const y = net.forward(xNorm);
+        const py = 100 - y * 80;
+        if (px === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = 'cyan';
+      ctx.stroke();
+    }
+
+    train();
+  </script>
+</body>
+</html>
